@@ -1,0 +1,62 @@
+{
+  "traffic": {
+    "status": "success",
+    "data": {
+      "resultType": "vector",
+      "result": [
+        {
+          "metric": {},
+          "value": [
+            1795680242.247,
+            "15.436217553934492"
+          ]
+        }
+      ]
+    }
+  },
+  "error_rate": {
+    "status": "success",
+    "data": {
+      "resultType": "vector",
+      "result": [
+        {
+          "metric": {},
+          "value": [
+            1795680242.274,
+            "0.19081332774334744"
+          ]
+        }
+      ]
+    }
+  },
+  "latency_p95": {
+    "status": "success",
+    "data": {
+      "resultType": "vector",
+      "result": [
+        {
+          "metric": {},
+          "value": [
+            1795680242.294,
+            "1.8938746056269717"
+          ]
+        }
+      ]
+    }
+  },
+  "instances_up": {
+    "status": "success",
+    "data": {
+      "resultType": "vector",
+      "result": [
+        {
+          "metric": {},
+          "value": [
+            1795680242.331,
+            "2"
+          ]
+        }
+      ]
+    }
+  }
+}

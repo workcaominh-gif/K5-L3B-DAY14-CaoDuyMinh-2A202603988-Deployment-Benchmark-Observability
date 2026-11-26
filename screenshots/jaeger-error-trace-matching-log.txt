@@ -1,0 +1,5 @@
+trace_id = ddc90a4c71023d6c700f8a8df5e0b402
+Matching JSON log lines from 'docker compose -p k5-day14-observability logs agent':
+
+agent-2  | {"ts": "2026-11-26T08:03:08.907102+00:00", "level": "INFO", "service": "observable-agent", "instance": "c6af6a135c9f", "event": "llm_error", "trace_id": "ddc90a4c71023d6c700f8a8df5e0b402", "span_id": "a8b5e6b4dfbc30f6", "request_id": "a6e3622c894e", "error": "Upstream LLM error: 503 Service Unavailable (mock)"}
+agent-2  | {"ts": "2026-11-26T08:03:08.910251+00:00", "level": "INFO", "service": "observable-agent", "instance": "c6af6a135c9f", "event": "http_request", "trace_id": "ddc90a4c71023d6c700f8a8df5e0b402", "span_id": "a8b5e6b4dfbc30f6", "request_id": "a6e3622c894e", "method": "POST", "route": "/ask", "status": 503, "ms": 860.4}

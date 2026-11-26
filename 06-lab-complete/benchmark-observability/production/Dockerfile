@@ -25,6 +25,11 @@ RUN chown -R agent:agent /app
 
 USER agent
 
+# HOME phải khớp với nơi COPY --from=builder đặt .local ở trên, vì Python's site
+# module tìm site-packages user tại $HOME/.local/lib/pythonX.Y/site-packages.
+# useradd tạo home dir là /app (WORKDIR), nên phải set HOME=/home/agent tường minh,
+# nếu không "uvicorn" tìm được binary qua PATH nhưng import lỗi ModuleNotFoundError.
+ENV HOME=/home/agent
 ENV PATH=/home/agent/.local/bin:$PATH
 ENV PYTHONPATH=/app
 ENV PYTHONDONTWRITEBYTECODE=1
