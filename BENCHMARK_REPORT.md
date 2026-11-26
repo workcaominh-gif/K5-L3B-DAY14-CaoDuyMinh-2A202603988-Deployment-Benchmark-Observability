@@ -46,18 +46,6 @@
 
 **Nhận xét:** **p99** (và ở `slow_rate=0.1`, cả **p95**) là chỉ số nhạy nhất — nó nhảy từ 226.7ms lên 1718.2ms khi slow rate tăng từ 0 → 0.1 (tăng ~7.6×), còn **avg** chỉ tăng từ 187.9 lên 345.2ms (~1.8×). Trung bình "pha trộn" số đông request nhanh với số ít request chậm bất thường nên nó bị kéo lên rất ít và che giấu hoàn toàn trải nghiệm của nhóm người dùng xấu số (3-10% request chờ gần 1.7-1.8 giây). Đặt SLO theo average sẽ khiến đội vận hành tin agent "ổn" (avg 345ms có vẻ chấp nhận được) trong khi thực tế 1/10 người dùng đang chờ gần 2 giây — p95/p99 mới phản ánh đúng trải nghiệm của "người dùng khó chịu nhất", và đó chính là nhóm dễ rời bỏ sản phẩm nhất.
 
-### 2.2 Tail latency
-
-| `MOCK_SLOW_RATE` | avg (ms) | p95 (ms) | p99 (ms) |
-|---|---|---|---|
-| 0 | | | |
-| 0.03 (mặc định) | | | |
-| 0.1 | | | |
-
-**Nhận xét:** Chỉ số nào nhạy nhất với request chậm? Vì sao SLO không nên đặt theo average?
-
-...
-
 ---
 
 ## 3. Benchmark chất lượng (develop, `eval/run_eval.py`)
