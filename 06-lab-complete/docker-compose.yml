@@ -10,3 +10,25 @@ services:
     build: .
     ports:
       - "8000:8000"
+    # docker compose tự đọc file .env ở cùng thư mục này (nếu có) để substitute
+    # các biến ${...} dưới đây — không bắt buộc phải có .env mới chạy được.
+    environment:
+      - PORT=8000
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - AGENT_API_KEY=${AGENT_API_KEY:-dev-key}
+      - REDIS_URL=redis://redis:6379/0
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-10}
+      - DAILY_BUDGET_USD=${DAILY_BUDGET_USD:-1.0}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped

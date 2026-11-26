@@ -1,7 +1,55 @@
 # ============================================================
-# TODO (tiêu chí 12): cấu hình deploy Render (Blueprint) — có thể dùng thay railway.toml
-#   services:
-#     - type: web, runtime: docker, healthCheckPath: /health
-#     - envVars: secret như AGENT_API_KEY dùng `generateValue: true` hoặc `sync: false`,
-#       KHÔNG ghi thẳng giá trị
+# render.yaml — Render Blueprint for 06-lab-complete
+#
+# Docs: https://render.com/docs/blueprint-spec
+# Commit file này vào git -> Render Dashboard -> New -> Blueprint -> chọn repo.
+# ============================================================
+
+services:
+  # ──────────────────────────────────────
+  # Web Service — Production AI Agent (Docker)
+  # ──────────────────────────────────────
+  - type: web
+    name: production-ai-agent
+    runtime: docker
+    repo: https://github.com/your-org/your-repo   # sửa lại thành repo thật trước khi deploy
+    dockerfilePath: ./06-lab-complete/Dockerfile
+    dockerContext: ./06-lab-complete
+    region: singapore
+    plan: free
+
+    healthCheckPath: /health   # Render check path này; non-200 -> rollback/restart
+
+    autoDeploy: true           # Auto deploy khi push lên GitHub
+
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "60"
+      - key: DAILY_BUDGET_USD
+        value: "5"
+      # Secrets — KHÔNG ghi thẳng giá trị thật trong file này.
+      - key: AGENT_API_KEY
+        generateValue: true    # Render tự sinh random value
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: agent-cache
+          property: connectionString
+
+  # ──────────────────────────────────────
+  # Redis — rate limiter + cost guard state
+  # ──────────────────────────────────────
+  - type: redis
+    name: agent-cache
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+
+# ============================================================
+# Cách deploy:
+#   1. Push code lên GitHub (sửa `repo:` ở trên thành repo thật)
+#   2. Render Dashboard -> New -> Blueprint -> chọn repo (Render đọc render.yaml này)
+#   3. Review và Deploy
+#   4. python check_production_ready.py --public-url https://<app>.onrender.com
 # ============================================================
