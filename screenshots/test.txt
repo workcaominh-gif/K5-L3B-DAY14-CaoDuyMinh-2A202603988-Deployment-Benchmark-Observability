@@ -1,0 +1,18 @@
+CP6 self-test — 2026-11-26T08:28:25Z
+$BASE = https://k5-l3b-day14-caoduyminh-2a202603988-deployment-b-production.up.railway.app
+
+$ curl -sS -o /dev/null -w "%{http_code}
+" "$BASE/health"
+200
+
+$ curl -sS -o /dev/null -w "%{http_code}
+" "$BASE/ready"
+200
+
+$ curl -sS -o /dev/null -w "%{http_code}
+" -X POST "$BASE/ask" -H "Content-Type: application/json" -d '{"question":"Hello"}' (no key)
+401
+
+$ curl -sS -o /dev/null -w "%{http_code}
+" -X POST "$BASE/ask" -H "X-API-Key: ****" -H "Content-Type: application/json" -d '{"question":"Hello"}' (with key)
+200

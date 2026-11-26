@@ -1,8 +1,48 @@
 # MISSION_ANSWERS — Day 14 (K5, cá nhân)
 
-# Mission Answers — CP1, CP2, CP3, CP4
+# Mission Answers — CP1, CP2, CP3, CP4, CP6
 
-(CP5/CP6/CP7/CP8 and `06-lab-complete/`, `benchmark-observability/` are owned by other agents — not covered here.)
+(CP5/CP7/CP8 and `06-lab-complete/`, `benchmark-observability/` content were produced by a different pass — not rewritten here.)
+
+---
+
+## Part 3 — Cloud Deployment (CP6)
+
+### Deploy thật trên Railway
+
+Agent Part 6 (`06-lab-complete/`) deploy trên **Railway**, không phải app mẫu `03-cloud-deployment/`.
+
+- Tạo project rỗng trên Railway, gắn service từ GitHub repo fork, đặt **Root Directory = `06-lab-complete`** (Railway build bằng chính `06-lab-complete/Dockerfile` theo `railway.toml`).
+- Thêm Redis managed trên cùng project; biến `REDIS_URL` của agent trỏ bằng tham chiếu Railway `${{Redis.REDIS_URL}}`, không gõ tay connection string.
+- Đặt `AGENT_API_KEY` (random, sinh bằng `secrets.token_urlsafe`), `ENVIRONMENT=production`, `RATE_LIMIT_PER_MINUTE=60`, `DAILY_BUDGET_USD=5`, `MONTHLY_BUDGET_USD=100` qua Railway Dashboard (Raw Editor), không commit giá trị thật — xem `.env.example` trong `06-lab-complete/`.
+- URL public: **https://k5-l3b-day14-caoduyminh-2a202603988-deployment-b-production.up.railway.app**
+
+4 lệnh tự kiểm CP6 chạy thật trên URL trên (xem [DEPLOYMENT.md](DEPLOYMENT.md), [screenshots/test.txt](screenshots/test.txt)):
+
+```
+GET  /health                         → 200
+GET  /ready                          → 200
+POST /ask (không có X-API-Key)       → 401
+POST /ask (có X-API-Key đúng)        → 200
+```
+
+Khớp đúng 4 kết quả CHECKPOINTS.md yêu cầu — agent đang chạy thật trên cloud, có Redis, có auth.
+
+### So sánh `railway.toml` với `render.yaml` (06-lab-complete/)
+
+| | `railway.toml` | `render.yaml` |
+| --- | --- | --- |
+| Build | `builder = "DOCKERFILE"` trỏ thẳng `Dockerfile` trong cùng thư mục | `runtime: docker` + `dockerfilePath`/`dockerContext` trỏ vào `06-lab-complete/` từ gốc repo (vì Render Blueprint đọc từ gốc repo, không phải từ root directory như Railway) |
+| Redis | Không khai báo trong file — phải tự thêm Redis service qua Dashboard hoặc CLI rồi set biến `REDIS_URL` thủ công (đây là việc nhóm đã làm ở Railway) | Khai báo Redis ngay trong blueprint (`type: redis`, `name: agent-cache`) và nối `REDIS_URL` bằng `fromService` — toàn bộ hạ tầng (web + Redis) tạo trong một lần "New → Blueprint" |
+| Secret `AGENT_API_KEY` | Đặt qua `railway variables set` (ngoài file, không commit) | Đặt `generateValue: true` ngay trong file — Render tự sinh giá trị random, không ai (kể cả người viết file) nhìn thấy giá trị |
+| Healthcheck | `healthcheckPath = "/health"`, `healthcheckTimeout = 30`, có `restartPolicy` riêng (`ON_FAILURE`, tối đa 3 lần) | `healthCheckPath: /health` — Render tự rollback/restart khi fail, không có tham số retry riêng trong file |
+| Biến môi trường thường (không phải secret) | Không khai báo trong file — set qua Dashboard/CLI mỗi lần | Khai báo thẳng trong `envVars` (`ENVIRONMENT`, `RATE_LIMIT_PER_MINUTE`, `DAILY_BUDGET_USD`) — tái lập được chỉ bằng file, không cần nhớ set tay |
+
+Tóm lại: `render.yaml` là Infrastructure-as-Code đầy đủ hơn (cả Redis, cả biến môi trường không-nhạy-cảm đều nằm trong file, chỉ secret là `generateValue`), còn `railway.toml` chỉ khai báo phần build/deploy của riêng service agent — phần hạ tầng còn lại (Redis, biến môi trường) phải làm tay trên Dashboard, đúng như nhóm đã làm thật ở trên.
+
+### Exercise 3.3 — Cloud Run (chỉ đọc, không deploy)
+
+`cloudbuild.yaml` định nghĩa pipeline 4 bước chạy tự động mỗi khi push lên `main`: (1) cài dependency và chạy `pytest` — build dừng ngay nếu test đỏ; (2) `docker build` image gắn tag theo `$COMMIT_SHA` và `latest`, tận dụng `--cache-from` để build nhanh hơn ở các lần sau; (3) push cả hai tag lên Container Registry; (4) deploy lên Cloud Run bằng chính image vừa push. `service.yaml` là phần mô tả hạ tầng đích dạng Knative: `minScale: 1` giữ sẵn một instance để tránh cold start, `maxScale: 10` giới hạn chi phí, mỗi instance nhận tối đa 80 request đồng thời (`containerConcurrency: 80`) — tách bạch rõ "pipeline build gì" (cloudbuild.yaml) khỏi "hạ tầng chạy thế nào" (service.yaml), giống tinh thần `railway.toml`/`render.yaml` nhưng tường minh hơn về scaling.
 
 ---
 
