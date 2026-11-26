@@ -517,29 +517,47 @@ Latency trung bình là một con số "pha trộn" (blended) — nó cộng g�
 
 ---
 
-## 4. Ghi chú trung thực về "screenshot" của Part 7
+## 4. Ảnh chụp màn hình thật (Part 7) và cách tạo ra tải/lỗi để chụp
 
-Agent chạy phần CP7/CP8 này **không có quyền truy cập GUI/trình duyệt** (môi trường headless CLI). Vì vậy 4 "ảnh chụp màn hình" mà CODE_LAB.md/README yêu cầu (dashboard Grafana, 1 trace chậm trong Jaeger, 1 trace lỗi trong Jaeger kèm log, trang Alerts của Prometheus đang firing) đã được thay bằng **bằng chứng kéo trực tiếp qua API** của từng dịch vụ, lưu dưới dạng `.json`/`.txt` trong `screenshots/`:
+Bốn ảnh PNG theo đúng yêu cầu gốc của CODE_LAB.md/README đã được chụp thật qua trình duyệt, trong lúc stack đang chạy và đang có tải thật:
 
-| File | Thay cho ảnh gì | Lấy bằng |
-|---|---|---|
-| `screenshots/grafana-dashboard-definition.json` | Ảnh dashboard Grafana | `GET /api/dashboards/uid/day14-agent-overview` (Grafana API, admin/admin) |
-| `screenshots/grafana-live-panel-data.json` | Số liệu sống trên dashboard lúc có tải | `GET /api/datasources/proxy/uid/prometheus/api/v1/query` qua Grafana (chạy đúng PromQL của 4 panel Golden Signals) |
-| `screenshots/jaeger-slow-trace.json` | Ảnh 1 trace chậm trong Jaeger | `GET /api/v3/traces/{trace_id}` (Jaeger v3 query API) |
-| `screenshots/jaeger-error-trace.json` | Ảnh 1 trace lỗi trong Jaeger | `GET /api/v3/traces/{trace_id}` |
-| `screenshots/jaeger-error-trace-matching-log.txt` | Dòng log JSON khớp `trace_id` của trace lỗi | `docker compose -p k5-day14-observability logs agent \| grep <trace_id>` |
-| `screenshots/prometheus-alerts.json`, `prometheus-alert-firing.json` | Ảnh trang Alerts của Prometheus đang firing | `GET /api/v1/alerts` |
+| File | Nội dung |
+|---|---|
+| `screenshots/grafana-dashboard.png` | Dashboard "Day 14 — AI Agent Overview" trên Grafana lúc đang có tải (traffic ~18–27 req/s, p95/p99 latency nhảy lên > 1,7s do `MOCK_SLOW_RATE`, cost burn rate ~$2,50/giờ) |
+| `screenshots/jaeger-slow-trace.png` | Trace `920f1499c66241807d06e38b3f1cb86f` (`POST /ask`, 1,7s), span chậm nhất là bước gọi LLM mock (`chat mock-llm-small`, 1658,7ms) |
+| `screenshots/jaeger-error-trace.png` | Trace `37fffbe9eea559e20a7df7c277833607` (`POST /ask` → 503), span lỗi đánh dấu đỏ ở bước gọi LLM |
+| `screenshots/prometheus-alert-firing.png` | Trang Alerts của Prometheus, **3 alert đang firing cùng lúc** (AgentHighErrorRate, AgentHighLatencyP95, LLMCostBurnRateHigh) — vượt yêu cầu tối thiểu 2 alert |
 
-Những file này chứa **dữ liệu thật, đo được, không bịa** — API trả JSON có cấu trúc đầy đủ (span, timestamp, giá trị metric, trạng thái alert) nên về nội dung thông tin không kém ảnh PNG, chỉ khác định dạng hiển thị. Tuy nhiên đây **không phải ảnh PNG thật** như bài yêu cầu theo đúng nghĩa đen ("Chụp một ảnh trang Alerts..."), và không cho thấy giao diện trực quan (màu đỏ/xanh của panel, layout dashboard) mà giảng viên/rubric có thể muốn nhìn thấy khi chấm bài.
+**Log khớp `trace_id`** cho hai trace trên (đối chiếu trực tiếp bằng `docker compose -p k5-day14-observability logs agent | grep <trace_id>`):
 
-**Khuyến nghị:** trước khi nộp bài, bạn (người dùng) nên tự mở `http://localhost:3000` (Grafana), `http://localhost:16686` (Jaeger), `http://localhost:9090/alerts` (Prometheus) trong trình duyệt thật và chụp 4 ảnh PNG theo đúng yêu cầu gốc của CODE_LAB.md/README, để vừa có bằng chứng JSON (dữ liệu thô, dùng để đối chiếu số liệu trong `BENCHMARK_REPORT.md`) vừa có ảnh PNG (bằng chứng trực quan, đúng định dạng rubric mong đợi). Stack đã được `docker compose down -v` sau khi agent hoàn thành CP7/CP8 — cần `docker compose -p k5-day14-observability up -d --build` lại và chạy Locust/driving-fault lại nếu muốn tái tạo đúng trạng thái "đang có tải + alert firing" lúc chụp ảnh.
+```
+# Trace chậm 920f1499c66241807d06e38b3f1cb86f
+{"event": "llm_call", "trace_id": "920f1499c66241807d06e38b3f1cb86f", "llm_ms": 1658.7, ...}
+{"event": "http_request", "trace_id": "920f1499c66241807d06e38b3f1cb86f", "status": 200, "ms": 1685.0}
+
+# Trace lỗi 37fffbe9eea559e20a7df7c277833607
+{"event": "llm_error", "trace_id": "37fffbe9eea559e20a7df7c277833607", "error": "Upstream LLM error: 503 Service Unavailable (mock)"}
+{"event": "http_request", "trace_id": "37fffbe9eea559e20a7df7c277833607", "status": 503, "ms": 107.8}
+```
+
+**Cách tạo đủ tải/lỗi để 3 alert cùng firing:** mặc định stack chỉ bơm lỗi/chậm rất nhẹ (`MOCK_ERROR_RATE=0.01`, `MOCK_SLOW_RATE=0.03`) — không đủ vượt ngưỡng alert (5% error, p95 > 1s). Đã tăng tạm thời qua `.env.local` (không commit, nằm trong `.gitignore`) lên `MOCK_ERROR_RATE=0.3`, `MOCK_SLOW_RATE=0.7`, `MOCK_SLOW_MS=2500`, `docker compose --env-file .env.local up -d --force-recreate --scale agent=3 agent`, rồi chạy Locust headless 60 user trong 180s để dồn đủ tải.
+
+**Thời gian tới lúc firing** (đối chiếu `for:` của từng rule trong `prometheus/alert_rules.yml` với `activeAt` lấy từ `GET /api/v1/alerts`, giờ UTC):
+
+| Alert | `for:` | Pending bắt đầu lúc | Firing (ước tính = pending + for) |
+|---|---:|---|---|
+| `AgentHighErrorRate` | 1 phút | 08:56:52 | ~08:57:52 (đã quan sát firing lúc 08:58:57, đúng > 1 phút) |
+| `AgentHighLatencyP95` | 2 phút | 08:56:47 | ~08:58:47 (đã quan sát firing lúc 08:58:57, đúng > 2 phút) |
+| `LLMCostBurnRateHigh` | 2 phút | 08:45:42 | ~08:47:42 (còn firing liên tục xuyên suốt các đợt tải sau đó, vì chi phí tích luỹ không giảm khi dừng tải ngắn) |
+
+Phân tích: `LLMCostBurnRateHigh` phản ứng chậm nhất để tắt lại (cộng dồn chi phí theo cửa sổ 5 phút nên vẫn còn firing một lúc sau khi tải giảm), còn `AgentHighErrorRate` (`for: 1m`) phản ứng nhanh nhất khi lỗi tăng đột ngột — đúng như thiết kế: alert an toàn (lỗi) cần phát hiện nhanh, alert chi phí chấp nhận độ trễ lớn hơn để tránh báo động giả vì một đợt tải ngắn.
 
 ---
 
 ## 5. Tóm tắt thực thi (tham chiếu nhanh)
 
 - CP7 (`develop/`): agent v1 (8001) / v2 (8002) chạy bằng Python 3.12 venv riêng (Python 3.15 hệ thống không build được `pydantic-core`). 4 load test theo concurrency, 3 load test theo `MOCK_SLOW_RATE`, eval v1/v2/v2_fixed — tất cả file JSON nằm trong `develop/reports/`. Sửa `KNOWLEDGE_BASE` trong `develop/utils/mock_llm.py` (và đồng bộ sang `production/utils/mock_llm.py`) để đạt accuracy 100%, quality gate PASS.
-- CP8 (`production/`): phát hiện và vá một lỗi thật trong `production/Dockerfile` (container agent crash-loop vì `ModuleNotFoundError: No module named 'uvicorn'` — xem chi tiết bug ở mục 6) trước khi stack chạy được. Sau khi vá, stack lên đủ 6 service, Locust headless scale 1→3 lưu CSV, 2 alert firing thật (có snapshot 3 alert firing đồng thời), trace chậm/lỗi lấy qua Jaeger API, log khớp `trace_id`.
+- CP8 (`production/`): phát hiện và vá một lỗi thật trong `production/Dockerfile` (container agent crash-loop vì `ModuleNotFoundError: No module named 'uvicorn'` — xem chi tiết bug ở mục 6) trước khi stack chạy được. Sau khi vá, stack lên đủ 6 service, Locust headless scale 1→3 lưu CSV, **3 alert firing đồng thời** (ảnh PNG thật, không phải mô phỏng), trace chậm/lỗi chụp thật trong Jaeger UI, log khớp `trace_id` cho cả hai.
 
 ---
 
@@ -554,3 +572,15 @@ ModuleNotFoundError: No module named 'uvicorn'
 Nguyên nhân: Dockerfile dùng multi-stage build, cài package bằng `pip install --user` ở stage builder (ghi vào `/root/.local`), rồi `COPY --from=builder /root/.local /home/agent/.local` sang stage runtime. Nhưng user `agent` được tạo bằng `useradd -r -g agent -d /app agent` — tức **home directory của user `agent` là `/app`**, không phải `/home/agent`. Python's `site` module chỉ tự thêm `$HOME/.local/lib/pythonX.Y/site-packages` vào `sys.path`, nên với `HOME=/app` nó tìm sai chỗ (`/app/.local/...` không tồn tại) dù `PATH` đã trỏ đúng tới `/home/agent/.local/bin/uvicorn` (binary chạy được, nhưng import bên trong nó thất bại).
 
 Đã vá bằng cách thêm `ENV HOME=/home/agent` ngay trước khi set `PATH`/`PYTHONPATH` trong `production/Dockerfile`, khớp với nơi `COPY --from=builder` đã đặt `.local`. Sau khi vá và `docker compose up -d --build`, agent lên `healthy` và trả 200 qua Nginx. Đây là một bug thật trong repo gốc (không phải lỗi cấu hình của người làm bài), ảnh hưởng trong phạm vi `06-lab-complete/benchmark-observability/production/` nên đã sửa trực tiếp để CP8 chạy được.
+
+---
+
+## AI log
+
+Dùng Claude Code (Sonnet 5) cho toàn bộ Part 1–8, chia theo nhiệm vụ:
+
+- **Part 1, 2, 4, 5 (CP1–CP4):** hỏi AI chạy từng ví dụ có sẵn (`develop`/`production`), đọc code để tìm anti-pattern, và dán output `curl`/`docker images` thật vào `MISSION_ANSWERS.md`. Tự kiểm tra bằng cách đọc lại chính output: số MB ở Part 2 lấy trực tiếp từ `docker images` sau khi build (không copy từ README), mã 401/200/429 ở Part 4 lấy từ vòng lặp `curl -i` thật (không suy đoán).
+- **Part 6 (CP5, 60 điểm):** nhờ AI viết các hàm còn `TODO` trong `06-lab-complete/app/` theo đúng "Bảng Hợp đồng" (script chấm) trong `06-lab-complete/README.md`. Tự kiểm tra bắt buộc bằng `python check_production_ready.py` — chạy đi chạy lại tới khi ra `PASS 12/12` thật (43/43 checks), không sửa file chấm, đã dán nguyên văn output vào mục "Kết quả chấm" ở trên.
+- **Part 3 (CP6):** nhờ AI thao tác Railway (tạo project, gắn repo, thêm Redis, set biến môi trường) và viết so sánh `railway.toml`/`render.yaml`. Tự kiểm tra bằng 4 lệnh `curl` tự kiểm trực tiếp trên URL public sau khi deploy xong — kết quả thật (200/200/401/200) dán trong `DEPLOYMENT.md` và `screenshots/test.txt`.
+- **Part 7 (CP7, CP8):** nhờ AI chạy `load_test.py`/`run_eval.py` theo đúng lệnh trong `CHECKPOINTS.md`, dựng stack Docker observability, tạo tải bằng Locust, truy vấn Prometheus/Jaeger API để lấy bằng chứng. Tự kiểm tra: mọi số trong `BENCHMARK_REPORT.md` đối chiếu lại với file JSON/CSV trong `reports/`/`benchmark-results/` (không ước lượng); khi phát hiện một bảng bị để trống do gộp nhầm giữa hai lần chạy, đã tự sửa lại cho khớp với bảng đã có số thật ngay phía trên.
+- **Không dùng AI để bịa số đo.** Mọi con số (kích thước image, latency, accuracy, thời gian alert firing) đều lấy từ lệnh đã chạy thật và file report đã nộp kèm, không phải do AI tạo ra hay ước lượng.

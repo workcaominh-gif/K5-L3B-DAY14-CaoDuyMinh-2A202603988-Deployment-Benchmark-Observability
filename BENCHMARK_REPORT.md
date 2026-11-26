@@ -79,12 +79,12 @@ v1 (không retrieval) gần như vô dụng trên dataset kỹ thuật này (4.3
 
 ### 4.1 Screenshot
 
-> ⚠️ Môi trường chạy agent này **không có GUI/trình duyệt** (headless CLI). Thay cho ảnh PNG, bằng chứng dưới đây là JSON/text lấy trực tiếp từ API của Prometheus/Jaeger/Grafana — xem chi tiết lý do và khuyến nghị trong `MISSION_ANSWERS_PART7.md`.
+Bốn ảnh PNG thật, chụp qua trình duyệt lúc stack đang chạy và đang có tải/lỗi thật (chi tiết timing và log khớp `trace_id` ở mục 4 của `MISSION_ANSWERS.md`):
 
-- [x] Dashboard Grafana khi đang có tải (thấy rõ Golden Signals) → `screenshots/grafana-dashboard-definition.json` (định nghĩa dashboard, 19 panel) + `screenshots/grafana-live-panel-data.json` (giá trị PromQL sống của 4 panel Golden Signals qua Grafana datasource-proxy, lấy lúc đang có tải: traffic ≈ 15.4 req/s, error rate ≈ 19.1%, p95 ≈ 1.89s, instances up = 2)
-- [x] Một trace chậm trong Jaeger (thấy span nào chiếm thời gian) → `screenshots/jaeger-slow-trace.json` (xem phân tích span ở mục 4.3)
-- [x] Một trace lỗi trong Jaeger (có event lỗi) → `screenshots/jaeger-error-trace.json` (span `chat mock-llm-small` có `status.code=2` (ERROR), message `LLMError: Upstream LLM error: 503 Service Unavailable (mock)`)
-- [x] Trang Alerts của Prometheus với ít nhất 1 alert đang **firing** → `screenshots/prometheus-alert-firing.json`: **3 alert đang firing đồng thời** lúc 2026-11-26T08:05:22Z (`AgentHighErrorRate`, `AgentHighLatencyP95`, `LLMCostBurnRateHigh`) — vượt yêu cầu tối thiểu 2.
+- [x] Dashboard Grafana khi đang có tải (thấy rõ Golden Signals) → `screenshots/grafana-dashboard.png` (traffic ≈ 18–27 req/s, p95/p99 nhảy lên > 1,7s, cost burn rate ≈ $2,50/giờ). Bằng chứng JSON thô (số liệu PromQL qua Grafana datasource-proxy) vẫn giữ ở `screenshots/grafana-dashboard-definition.json` / `grafana-live-panel-data.json` để đối chiếu số.
+- [x] Một trace chậm trong Jaeger (thấy span nào chiếm thời gian) → `screenshots/jaeger-slow-trace.png` (`trace_id` `920f1499c66241807d06e38b3f1cb86f`, 1,7s, span chậm nhất là `chat mock-llm-small...`, 1658,7ms — khớp log JSON)
+- [x] Một trace lỗi trong Jaeger (có event lỗi) → `screenshots/jaeger-error-trace.png` (`trace_id` `37fffbe9eea559e20a7df7c277833607`, status 503, span `chat mock-llm-small` đánh dấu đỏ — khớp log `llm_error`)
+- [x] Trang Alerts của Prometheus với ít nhất 1 alert đang **firing** → `screenshots/prometheus-alert-firing.png`: **3 alert đang firing đồng thời** (`AgentHighErrorRate`, `AgentHighLatencyP95`, `LLMCostBurnRateHigh`) lúc 2026-11-26T08:58:57Z — vượt yêu cầu tối thiểu 2.
 
 ### 4.2 Thí nghiệm "phá hệ thống"
 
@@ -100,11 +100,11 @@ v1 (không retrieval) gần như vô dụng trên dataset kỹ thuật này (4.3
 
 **Quan sát thêm (không nằm trong bảng gốc):** `LLMCostBurnRateHigh` cũng **firing** trong cùng snapshot (`activeAt` 07:58:52, tức đã firing từ ~08:00:52) — đây là hiệu ứng phụ *tự nhiên* của bài benchmark scaling ở mục 5 (Locust headless 100 user, 2 phút chạy ở throughput mặc định): tốc độ chi tiêu LLM mock vượt $2/giờ chỉ từ **khối lượng traffic cao**, không cần đổi `LLM_MODEL`. Điều này cho thấy alert cost không chỉ bắt được việc đổi sang model đắt (bài C) mà còn bắt được tăng trưởng traffic bất thường — đúng với mục đích "cost burn rate" alert.
 
-Chỉ chạy A và B (đã đủ ≥2 alert firing theo yêu cầu CP8); C/D/E không chạy để tiết kiệm thời gian wall-clock, ghi nhận trung thực ở đây và trong `MISSION_ANSWERS_PART7.md`.
+Chỉ chạy A và B (đã đủ ≥2 alert firing theo yêu cầu CP8); C/D/E không chạy để tiết kiệm thời gian wall-clock, ghi nhận trung thực ở đây và trong `MISSION_ANSWERS.md`.
 
 **Thí nghiệm E không làm alert nào firing. Bạn sẽ phát hiện loại sự cố này trong production bằng cách nào?**
 
-Metric hạ tầng (latency, error rate, instance up) đều "xanh" khi đổi `AGENT_VERSION=v1` vì v1 vẫn trả HTTP 200 nhanh và không lỗi — nó chỉ trả lời *sai về nội dung*, một lớp vấn đề mà metric không nhìn thấy được. Cách phát hiện trong production: (1) chạy **eval trên golden dataset định kỳ trong CI/CD** trước mỗi lần deploy, dùng chính `run_eval.py` làm quality gate (mục 1 của `MISSION_ANSWERS_PART7.md`); (2) theo dõi tín hiệu gián tiếp từ người dùng thật — tỉ lệ thumbs-down/feedback âm, tỉ lệ người dùng hỏi lại/rephrase trong 1 phiên, hoặc escalation tới người thật; (3) thêm metric riêng cho chất lượng, ví dụ `retrieval_hit_ratio` (đã có sẵn trong dashboard — ở v1 metric này sẽ "biến mất" vì v1 không retrieval) và alert khi nó tụt về 0 bất thường; (4) chạy eval nhỏ liên tục (canary eval) ngay trên traffic production với một tập câu hỏi rút gọn, không chỉ eval offline.
+Metric hạ tầng (latency, error rate, instance up) đều "xanh" khi đổi `AGENT_VERSION=v1` vì v1 vẫn trả HTTP 200 nhanh và không lỗi — nó chỉ trả lời *sai về nội dung*, một lớp vấn đề mà metric không nhìn thấy được. Cách phát hiện trong production: (1) chạy **eval trên golden dataset định kỳ trong CI/CD** trước mỗi lần deploy, dùng chính `run_eval.py` làm quality gate (mục 1 của `MISSION_ANSWERS.md`); (2) theo dõi tín hiệu gián tiếp từ người dùng thật — tỉ lệ thumbs-down/feedback âm, tỉ lệ người dùng hỏi lại/rephrase trong 1 phiên, hoặc escalation tới người thật; (3) thêm metric riêng cho chất lượng, ví dụ `retrieval_hit_ratio` (đã có sẵn trong dashboard — ở v1 metric này sẽ "biến mất" vì v1 không retrieval) và alert khi nó tụt về 0 bất thường; (4) chạy eval nhỏ liên tục (canary eval) ngay trên traffic production với một tập câu hỏi rút gọn, không chỉ eval offline.
 
 ### 4.3 Debug bằng trace
 
